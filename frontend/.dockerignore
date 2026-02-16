@@ -1,0 +1,36 @@
+# 依赖目录
+node_modules/
+
+# 构建输出 (在容器内构建)
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# 环境文件
+.env
+.env.local
+.env.*.local
+
+# 文档
+*.md
+
+# 测试文件
+coverage/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+
+# 临时文件
+*.log
+.DS_Store
+Thumbs.db

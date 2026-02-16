@@ -1,0 +1,458 @@
+.object-list-panel {
+  position: fixed;
+  left: 20px;
+  top: 20px;
+  width: 320px;
+  max-height: 600px;
+  background: #2a2a2a;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.3s ease;
+}
+
+.object-list-panel.minimized {
+  max-height: 60px;
+  width: auto;
+  min-width: 280px;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.object-list-panel h2 {
+  margin: 0;
+  font-size: 16px;
+  color: white;
+  font-weight: 600;
+}
+
+.header-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.minimize-btn {
+  background: #555;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.minimize-btn .icon {
+  width: 20px;
+  height: 20px;
+}
+
+.minimize-btn:hover {
+  background: #666;
+  transform: scale(1.05);
+}
+
+.add-object-btn {
+  background: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.add-object-btn .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.add-object-btn:hover {
+  background: #45a049;
+}
+
+.add-object-btn.active {
+  background: #FF9800;
+  animation: pulse 2s infinite;
+}
+
+.export-btn {
+  background: #2196F3;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.export-btn .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.export-btn:hover:not(:disabled) {
+  background: #1976D2;
+}
+
+.export-btn:disabled {
+  background: #666;
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.add-object-btn.active:hover {
+  background: #FB8C00;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 152, 0, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(255, 152, 0, 0);
+  }
+}
+
+.empty-state {
+  text-align: center;
+  color: #888;
+  padding: 40px 20px;
+  font-size: 14px;
+}
+
+.object-list-scroll {
+  max-height: 520px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.object-list-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+
+.object-list-scroll::-webkit-scrollbar-track {
+  background: #1a1a1a;
+  border-radius: 4px;
+}
+
+.object-list-scroll::-webkit-scrollbar-thumb {
+  background: #444;
+  border-radius: 4px;
+}
+
+.object-list-scroll::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+.object-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  background: #1a1a1a;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 2px solid transparent;
+}
+
+.object-item:hover {
+  background: #333;
+}
+
+.object-item.selected {
+  background: #404040;
+  border: 2px solid #4CAF50;
+  box-shadow: 0 0 12px rgba(76, 175, 80, 0.4);
+  animation: highlightPulse 0.5s ease-out;
+}
+
+@keyframes highlightPulse {
+  0% {
+    box-shadow: 0 0 0 rgba(76, 175, 80, 0);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(76, 175, 80, 0.6);
+    transform: scale(1.02);
+  }
+  100% {
+    box-shadow: 0 0 12px rgba(76, 175, 80, 0.4);
+    transform: scale(1);
+  }
+}
+
+.object-thumbnail {
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 4px;
+  flex-shrink: 0;
+  background: #000;
+}
+
+.object-thumbnail-placeholder {
+  width: 60px;
+  height: 60px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  background: #333;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: #666;
+}
+
+.object-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.object-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.color-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.object-name {
+  font-weight: 600;
+  color: white;
+  font-size: 14px;
+}
+
+.object-meta {
+  display: flex;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.object-class {
+  color: #aaa;
+}
+
+.object-confidence {
+  color: #4CAF50;
+  font-weight: 600;
+}
+
+.object-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.edit-btn,
+.delete-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  color: #aaa;
+  transition: all 0.2s;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.action-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.edit-btn:hover,
+.delete-btn:hover {
+  color: white;
+  transform: scale(1.1);
+}
+
+.delete-btn:hover {
+  color: #f44336;
+}
+
+/* Edit Dialog */
+.edit-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.edit-dialog {
+  background: #2a2a2a;
+  border-radius: 12px;
+  padding: 24px;
+  width: 400px;
+  max-width: 90vw;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.edit-dialog h3 {
+  margin: 0 0 16px 0;
+  font-size: 18px;
+  color: white;
+  font-weight: 600;
+}
+
+.edit-input {
+  width: 100%;
+  background: #1a1a1a;
+  border: 2px solid #444;
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: white;
+  font-size: 14px;
+  margin-bottom: 16px;
+  transition: border-color 0.2s;
+}
+
+.edit-input:focus {
+  outline: none;
+  border-color: #4CAF50;
+}
+
+.edit-dialog-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.edit-save-btn,
+.edit-cancel-btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.edit-save-btn {
+  background: #4CAF50;
+  color: white;
+}
+
+.edit-save-btn:hover {
+  background: #45a049;
+}
+
+.edit-cancel-btn {
+  background: #555;
+  color: white;
+}
+
+.edit-cancel-btn:hover {
+  background: #666;
+}
+
+/* Batch mode buttons */
+.batch-extract-btn {
+  background: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.batch-extract-btn .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.batch-extract-btn:hover {
+  background: #45a049;
+  transform: scale(1.05);
+}
+
+.clear-points-btn {
+  background: #f44336;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.clear-points-btn .icon {
+  width: 18px;
+  height: 18px;
+}
+
+.clear-points-btn:hover {
+  background: #da190b;
+  transform: scale(1.05);
+}

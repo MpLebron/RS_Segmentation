@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+.venv/
+*.egg-info/
+.eggs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# 环境文件 (通过 Docker env 处理)
+.env
+.env.local
+.env.*.local
+
+# 大模型文件 (通过 volume 挂载)
+models/checkpoints/*.pth
+models/checkpoints/*.pt
+models/.cache/
+
+# 测试文件
+tests/
+*.test.py
+pytest.ini
+
+# 临时文件
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+
+# 文档
+*.md
+!README.md

@@ -1,0 +1,12 @@
+# ============================================
+# GuZhu Docker Compose - CPU 版本
+# 用法: docker compose -f docker-compose.yml -f docker-compose.cpu.yml up
+# ============================================
+
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.cpu

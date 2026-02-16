@@ -1,0 +1,79 @@
+# ============================================
+# GuZhu Backend Dockerfile (CPU Version)
+# 纯 CPU 模式，无需 GPU
+# ============================================
+
+FROM python:3.10-slim
+
+# 设置环境变量
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    # PyTorch 缓存目录
+    TORCH_HOME=/app/models/.cache/torch \
+    # Hugging Face 缓存目录
+    HF_HOME=/app/models/.cache/huggingface \
+    TRANSFORMERS_CACHE=/app/models/.cache/huggingface \
+    # SAM 模型配置
+    SAM_MODEL_VERSION=sam3 \
+    SAM_MODEL_TYPE=vit_h
+
+# 使用阿里云镜像源加速
+RUN sed -i 's/deb.debian.org/mirrors.aliyun.com/g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || true && \
+    sed -i 's/ports.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list 2>/dev/null || true
+
+# 安装系统依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3-gdal \
+    libgdal-dev \
+    gdal-bin \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender-dev \
+    libgomp1 \
+    build-essential \
+    curl \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# 设置 GDAL 环境变量
+ENV CPLUS_INCLUDE_PATH=/usr/include/gdal \
+    C_INCLUDE_PATH=/usr/include/gdal
+
+# 创建工作目录
+WORKDIR /app
+
+# 创建非 root 用户
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# 复制依赖文件
+COPY requirements.txt .
+
+# 安装 Python 依赖 (CPU 版本的 PyTorch)
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu && \
+    pip install --no-cache-dir -r requirements.txt
+
+# 复制应用代码
+COPY app/ ./app/
+COPY models/*.py ./models/
+
+# 创建必要的目录
+RUN mkdir -p /app/models/checkpoints \
+    /app/models/.cache/torch \
+    /app/models/.cache/huggingface && \
+    chown -R appuser:appuser /app
+
+# 切换到非 root 用户
+USER appuser
+
+# 暴露端口
+EXPOSE 8000
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=30s --start-period=120s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# 启动命令
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

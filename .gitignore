@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+venv/
+__pycache__/
+
+# Build outputs
+dist/
+build/
+*.pyc
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Model weights
+*.pth
+*.pt
+backend/models/checkpoints/
+
+# Docker images (large tar.gz files)
+docker-images/*.tar.gz
+
+# Hugging Face cache
+.cache/
+
+# Claude Code local settings
+.claude/

@@ -1,0 +1,389 @@
+.control-panel-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 24px;
+  gap: 24px;
+}
+
+.panel-header {
+  border-bottom: 1px solid #3a3a3a;
+  padding-bottom: 16px;
+}
+
+.panel-header h1 {
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #ffffff;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: #888888;
+}
+
+.panel-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panel-section h2 {
+  font-size: 16px;
+  font-weight: 500;
+  color: #cccccc;
+}
+
+.instruction {
+  font-size: 14px;
+  color: #888888;
+}
+
+.file-upload {
+  position: relative;
+}
+
+.file-upload input[type="file"] {
+  display: none;
+}
+
+.file-label {
+  display: block;
+  padding: 12px 16px;
+  background-color: #3a3a3a;
+  border: 2px dashed #555555;
+  border-radius: 8px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  color: #cccccc;
+}
+
+.file-label:hover {
+  background-color: #444444;
+  border-color: #666666;
+}
+
+.points-list {
+  background-color: #1a1a1a;
+  border-radius: 8px;
+  padding: 12px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.empty-state {
+  text-align: center;
+  color: #666666;
+  font-size: 14px;
+  padding: 20px;
+}
+
+.point-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  margin-bottom: 4px;
+  background-color: #2a2a2a;
+  border-radius: 4px;
+  font-size: 14px;
+  color: #cccccc;
+}
+
+.point-marker {
+  width: 12px;
+  height: 12px;
+  background-color: #00ff00;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+}
+
+.btn-primary,
+.btn-secondary {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background-color: #00aa00;
+  color: #ffffff;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #00cc00;
+}
+
+.btn-primary:disabled {
+  background-color: #444444;
+  color: #666666;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background-color: #3a3a3a;
+  color: #cccccc;
+}
+
+.btn-secondary:hover {
+  background-color: #444444;
+}
+
+.error-message {
+  color: #ff4444;
+  font-size: 14px;
+  padding: 8px;
+  background-color: rgba(255, 68, 68, 0.1);
+  border-radius: 4px;
+  border-left: 3px solid #ff4444;
+}
+
+.panel-footer {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid #3a3a3a;
+}
+
+.info-text {
+  font-size: 12px;
+  color: #666666;
+  line-height: 1.5;
+}
+
+.instruction-box {
+  background-color: #1a1a1a;
+  border-radius: 8px;
+  padding: 12px;
+  border-left: 3px solid #00aa00;
+}
+
+.instruction-box p {
+  font-size: 14px;
+  color: #cccccc;
+  margin: 8px 0;
+  line-height: 1.6;
+}
+
+.auto-mode-hint {
+  background-color: rgba(255, 152, 0, 0.1);
+  border-left: 3px solid #FF9800;
+  padding: 12px;
+  border-radius: 4px;
+  color: #FFA726;
+  font-size: 14px;
+  margin: 0;
+}
+
+.map-preview {
+  width: 100%;
+  border-radius: 8px;
+  border: 2px solid #3a3a3a;
+  margin-top: 8px;
+}
+
+/* Mode selector styles */
+.mode-selector {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.mode-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 8px;
+  background-color: #2a2a2a;
+  border: 2px solid #3a3a3a;
+  border-radius: 8px;
+  color: #888888;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 13px;
+}
+
+.mode-btn:hover {
+  background-color: #333333;
+  border-color: #555555;
+}
+
+.mode-btn.active {
+  background-color: #003300;
+  border-color: #00aa00;
+  color: #ffffff;
+}
+
+.mode-icon {
+  width: 24px;
+  height: 24px;
+}
+
+/* Text input styles */
+.text-input {
+  width: 100%;
+  padding: 12px;
+  background-color: #2a2a2a;
+  border: 2px solid #3a3a3a;
+  border-radius: 8px;
+  color: #ffffff;
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+
+.text-input:focus {
+  outline: none;
+  border-color: #00aa00;
+}
+
+.text-input::placeholder {
+  color: #666666;
+}
+
+/* Prompt chips styles */
+.prompt-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.chip {
+  padding: 8px 16px;
+  background-color: #2a2a2a;
+  border: 1px solid #3a3a3a;
+  border-radius: 16px;
+  color: #cccccc;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.chip:hover {
+  background-color: #333333;
+  border-color: #555555;
+}
+
+.chip.active {
+  background-color: #003300;
+  border-color: #00aa00;
+  color: #ffffff;
+}
+
+.panel-section h3 {
+  font-size: 14px;
+  font-weight: 500;
+  color: #aaaaaa;
+  margin-top: 16px;
+  margin-bottom: 8px;
+}
+
+/* Filter controls for AUTO mode */
+.filter-group {
+  margin-bottom: 20px;
+}
+
+.filter-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  color: #cccccc;
+  margin-bottom: 8px;
+  font-weight: 500;
+}
+
+.filter-value {
+  color: #4CAF50;
+  font-weight: 600;
+}
+
+.confidence-slider {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, #666 0%, #4CAF50 100%);
+  outline: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.confidence-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #4CAF50;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  transition: all 0.2s;
+}
+
+.confidence-slider::-webkit-slider-thumb:hover {
+  background: #66BB6A;
+  transform: scale(1.1);
+}
+
+.confidence-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #4CAF50;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  border: none;
+  transition: all 0.2s;
+}
+
+.confidence-slider::-moz-range-thumb:hover {
+  background: #66BB6A;
+  transform: scale(1.1);
+}
+
+.size-inputs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.size-input {
+  flex: 1;
+  padding: 10px 12px;
+  background-color: #2a2a2a;
+  border: 2px solid #3a3a3a;
+  border-radius: 8px;
+  color: #ffffff;
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+
+.size-input:focus {
+  outline: none;
+  border-color: #4CAF50;
+}
+
+.size-input::placeholder {
+  color: #666666;
+}
+
+.size-separator {
+  color: #666666;
+  font-weight: bold;
+}
+
+.filter-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #888888;
+  font-style: italic;
+}
+

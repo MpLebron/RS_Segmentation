@@ -1,0 +1,126 @@
+.map-view {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.mapboxgl-map {
+  width: 100%;
+  height: 100%;
+}
+
+.mapboxgl-ctrl-bottom-left,
+.mapboxgl-ctrl-bottom-right {
+  display: none;
+}
+
+/* Add Object mode cursor */
+.map-view.add-object-mode .mapboxgl-canvas-container {
+  cursor: crosshair !important;
+}
+
+.map-view.add-object-mode .mapboxgl-canvas {
+  cursor: crosshair !important;
+}
+
+/* Click marker container */
+.click-marker {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+/* Pulsing outer circle */
+.click-marker-pulse {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: rgba(34, 197, 94, 0.3);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Inner solid circle */
+.click-marker-inner {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: #22C55E;
+  border: 2px solid #FFFFFF;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  z-index: 1;
+}
+
+/* Pulse animation */
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.3;
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 0.1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 0.3;
+  }
+}
+
+/* Spin animation */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Pending point marker (yellow, for batch mode) */
+.pending-point-marker {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* Pulsing outer circle for pending points */
+.pending-point-pulse {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: rgba(251, 191, 36, 0.3);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Inner solid circle for pending points */
+.pending-point-inner {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background-color: #FBBF24;
+  border: 2px solid #FFFFFF;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.pending-point-marker:hover .pending-point-inner {
+  background-color: #F59E0B;
+}

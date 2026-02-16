@@ -1,0 +1,30 @@
+fastapi==0.109.0
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+python-dotenv>=1.0.0
+numpy>=1.24.0
+opencv-python-headless>=4.8.0
+Pillow>=10.0.0
+pyproj>=3.6.0
+
+# SAM model support
+segment-anything @ git+https://github.com/facebookresearch/segment-anything.git
+
+# SAM3 via Transformers (独立实现，不需要 samgeo)
+transformers>=4.35.0
+huggingface-hub>=0.19.0
+
+# Shapefile export
+geopandas>=0.14.0
+fiona>=1.9.0
+shapely>=2.0.0
+
+# GeoTIFF support
+rasterio>=1.3.0
+
+# Async HTTP client for OpenAI Realtime API
+httpx>=0.25.0
+
+# Note: PyTorch is installed separately in Dockerfile
+# GPU: torch torchvision --index-url https://download.pytorch.org/whl/cu118
+# CPU: torch torchvision --index-url https://download.pytorch.org/whl/cpu

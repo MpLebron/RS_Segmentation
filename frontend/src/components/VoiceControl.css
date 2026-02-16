@@ -1,0 +1,169 @@
+/* Voice Control - floating UI overlay */
+.voice-control {
+  position: absolute;
+  bottom: 24px;
+  right: 24px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+/* Microphone button */
+.voice-btn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
+  background-color: #2ecc71;
+  color: white;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  outline: none;
+}
+
+.voice-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+}
+
+.voice-btn:active {
+  transform: scale(0.95);
+}
+
+/* Connected / recording state */
+.voice-btn.active {
+  background-color: #e74c3c;
+}
+
+/* Connecting state */
+.voice-btn.connecting {
+  background-color: #f39c12;
+  animation: connecting-pulse 1.5s ease-in-out infinite;
+}
+
+/* Error state */
+.voice-btn.error {
+  background-color: #e74c3c;
+  animation: error-shake 0.5s ease-in-out;
+}
+
+@keyframes connecting-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes error-shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-4px); }
+  40%, 80% { transform: translateX(4px); }
+}
+
+/* Audio level pulse ring */
+.voice-pulse {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 3px solid #2ecc71;
+  animation: pulse-ring 1.5s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
+/* Transcript panel */
+.voice-transcript {
+  width: 280px;
+  max-height: 220px;
+  background: rgba(26, 26, 26, 0.95);
+  border-radius: 12px;
+  padding: 12px;
+  border: 1px solid #3a3a3a;
+  overflow-y: auto;
+  backdrop-filter: blur(8px);
+  animation: transcript-slide-up 0.3s ease-out;
+}
+
+@keyframes transcript-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.voice-transcript::-webkit-scrollbar {
+  width: 4px;
+}
+
+.voice-transcript::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.voice-transcript::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 2px;
+}
+
+/* Transcript lines */
+.transcript-line {
+  font-size: 13px;
+  color: #cccccc;
+  margin: 6px 0;
+  line-height: 1.4;
+  display: flex;
+  gap: 6px;
+}
+
+.transcript-role {
+  font-weight: 600;
+  flex-shrink: 0;
+  min-width: 24px;
+}
+
+.transcript-text {
+  word-break: break-word;
+}
+
+.transcript-line.user .transcript-role {
+  color: #2ecc71;
+}
+
+.transcript-line.assistant .transcript-role {
+  color: #3498db;
+}
+
+.transcript-line.assistant .transcript-text {
+  color: #b0c4de;
+}
+
+/* Status text */
+.voice-status {
+  font-size: 11px;
+  color: #888;
+  text-align: center;
+  padding: 2px 8px;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
