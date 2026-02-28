@@ -64,7 +64,7 @@ class SAM3TransformersSegmenter:
     def segment_from_text(
         self,
         text_prompt: str,
-        confidence_threshold: float = 0.5,
+        confidence_threshold: float = 0.3,
         mask_threshold: float = 0.5
     ) -> List[Dict]:
         """

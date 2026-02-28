@@ -25,6 +25,12 @@ export interface Bounds {
   south: number;
   east: number;
   north: number;
+  corners?: {
+    top_left: { lng: number; lat: number };
+    top_right: { lng: number; lat: number };
+    bottom_right: { lng: number; lat: number };
+    bottom_left: { lng: number; lat: number };
+  };
 }
 
 export interface SegmentResponse {
@@ -96,7 +102,7 @@ export async function segmentImageWithText(
 export async function segmentImageAuto(
   imageFile: File,
   bounds: Bounds,
-  minConfidence: number = 0.8,
+  minConfidence: number = 0.3,
   minSize?: number,
   maxSize?: number,
 ): Promise<SegmentResponse> {

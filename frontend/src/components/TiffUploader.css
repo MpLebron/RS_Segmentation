@@ -3,7 +3,7 @@
 }
 
 .tiff-upload-btn {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #1ddf86 0%, #16b368 100%);
   color: white;
   border: none;
   border-radius: 8px;
@@ -17,7 +17,7 @@
   justify-content: center;
   gap: 8px;
   width: 100%;
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 12px rgba(22, 179, 104, 0.35);
 }
 
 .tiff-upload-btn .icon {
@@ -39,8 +39,8 @@
 }
 
 .tiff-upload-btn:hover {
-  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
-  box-shadow: 0 6px 16px rgba(102, 126, 234, 0.4);
+  background: linear-gradient(135deg, #22e18b 0%, #169e5f 100%);
+  box-shadow: 0 6px 16px rgba(22, 179, 104, 0.45);
   transform: translateY(-2px);
 }
 

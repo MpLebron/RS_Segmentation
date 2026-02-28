@@ -16,6 +16,55 @@ interface ControlPanelProps {
   isSegmenting: boolean
 }
 
+function buildCaptureBounds(map: any) {
+  const bounds = map.getBounds()
+  const container = map.getContainer()
+  const width = container.clientWidth
+  const height = container.clientHeight
+
+  const topLeft = map.unproject([0, 0])
+  const topRight = map.unproject([width, 0])
+  const bottomRight = map.unproject([width, height])
+  const bottomLeft = map.unproject([0, height])
+
+  return {
+    west: bounds.getWest(),
+    south: bounds.getSouth(),
+    east: bounds.getEast(),
+    north: bounds.getNorth(),
+    corners: {
+      top_left: { lng: topLeft.lng, lat: topLeft.lat },
+      top_right: { lng: topRight.lng, lat: topRight.lat },
+      bottom_right: { lng: bottomRight.lng, lat: bottomRight.lat },
+      bottom_left: { lng: bottomLeft.lng, lat: bottomLeft.lat },
+    },
+  }
+}
+
+async function waitForStableMap(map: any): Promise<void> {
+  await new Promise<void>((resolve) => {
+    if (!map.isMoving() && map.loaded()) {
+      resolve()
+      return
+    }
+
+    let done = false
+    const tryResolve = () => {
+      if (done) return
+      if (!map.isMoving() && map.loaded()) {
+        done = true
+        map.off('moveend', tryResolve)
+        map.off('idle', tryResolve)
+        resolve()
+      }
+    }
+
+    map.on('moveend', tryResolve)
+    map.on('idle', tryResolve)
+    tryResolve()
+  })
+}
+
 function ControlPanel({ onObjectsDetected, mapRef, onTextSegmentationStart, onTextSegmentationComplete, onTiffUploaded, textPrompt, onTextPromptChange, isSegmenting }: ControlPanelProps) {
   const [error, setError] = useState<string | null>(null)
   const [capturedImage, setCapturedImage] = useState<string | null>(null)
@@ -29,14 +78,8 @@ function ControlPanel({ onObjectsDetected, mapRef, onTextSegmentationStart, onTe
     try {
       const map = mapRef.current.getMap()
 
-      // 等待地图完全渲染（包括瓦片加载）
-      await new Promise((resolve) => {
-        if (map.loaded()) {
-          resolve(null)
-        } else {
-          map.once('idle', () => resolve(null))
-        }
-      })
+      // 等待地图视图稳定（停止移动 + 渲染完成），避免截图与 bounds 不一致
+      await waitForStableMap(map)
 
       const canvas = map.getCanvas()
       const dataUrl = canvas.toDataURL('image/png')
@@ -47,7 +90,7 @@ function ControlPanel({ onObjectsDetected, mapRef, onTextSegmentationStart, onTe
 
       return {
         dataUrl,
-        bounds: map.getBounds(),
+        bounds: buildCaptureBounds(map),
         size: {
           width: canvas.width,
           height: canvas.height
@@ -84,12 +127,7 @@ function ControlPanel({ onObjectsDetected, mapRef, onTextSegmentationStart, onTe
       const blob = await response.blob()
       const file = new File([blob], 'map-capture.png', { type: 'image/png' })
 
-      const boundsObj = {
-        west: mapData.bounds.getWest(),
-        south: mapData.bounds.getSouth(),
-        east: mapData.bounds.getEast(),
-        north: mapData.bounds.getNorth()
-      }
+      const boundsObj = mapData.bounds
 
       // Text-based segmentation
       console.log('Text prompt:', textPrompt)
@@ -130,8 +168,7 @@ function ControlPanel({ onObjectsDetected, mapRef, onTextSegmentationStart, onTe
   return (
     <div className="control-panel-content">
       <div className="panel-header">
-        <h1>大模型图像分割</h1>
-        <p className="subtitle">基于SAM的智能影像分割</p>
+        <h1>佳格图像分割智能体</h1>
       </div>
 
       <div className="panel-section">

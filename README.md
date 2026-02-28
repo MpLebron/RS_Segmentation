@@ -1,6 +1,6 @@
 # GuZhu - AI Image Segmentation Platform
 
-一个基于SAM (Segment Anything Model) 的智能影像分割平台，具有交互式地图界面。
+一个基于 SAM / SAM3 的智能影像分割平台，具有交互式地图界面，并提供语音助手作为可选交互方式（不替代常规界面操作流程）。
 
 ## 项目结构
 
@@ -30,12 +30,12 @@ GuZhu/
 
 ## 功能特性
 
-- 🗺️ 交互式Mapbox地图界面
-- 🎯 基于点击的智能影像分割（SAM模型）
-- 🌙 深色主题UI
-- 📍 地理坐标与像素坐标转换
-- 📦 GeoJSON格式导出
-- ⚡ 实时分割可视化
+- 🗺️ 交互式 Mapbox 地图界面（支持 GeoTIFF 叠加）
+- 📝 文本提示分割（SAM3，适合批量识别同类对象）
+- 🎯 手动点选添加对象（SAM1，适合补提/修正）
+- 📍 地理坐标与像素坐标转换（输出 GeoJSON）
+- 📦 Shapefile 导出（ZIP）
+- 🎙️ 语音助手（可选交互入口，可执行定位/缩放/分割/导出）
 
 ## 快速开始
 
@@ -47,10 +47,10 @@ cd frontend
 # 安装依赖
 npm install
 
-# 配置环境变量
-cp .env.example .env
-# 编辑 .env 文件，添加你的 Mapbox Token:
-# VITE_MAPBOX_TOKEN=your_mapbox_token_here
+# 配置环境变量（Mapbox Token 必需）
+cat > .env <<EOF
+VITE_MAPBOX_TOKEN=your_mapbox_token_here
+EOF
 
 # 启动开发服务器
 npm run dev
@@ -81,6 +81,10 @@ source venv/bin/activate
 # 安装依赖
 pip install -r requirements.txt
 
+# （可选）语音助手需要 OpenAI API Key
+# 如果不使用语音功能，可以跳过
+# export OPENAI_API_KEY=your_openai_api_key
+
 # 下载SAM模型
 # 创建checkpoints目录
 mkdir -p models/checkpoints
@@ -108,20 +112,25 @@ uvicorn app.main:app --reload --port 8000
 1. **启动服务**
    - 在两个终端分别启动前端和后端服务
 
-2. **上传影像**
-   - 在右侧控制面板上传影像文件
+2. **导入影像（推荐）**
+   - 在右侧控制面板上传 GeoTIFF（也可直接使用底图进行识别）
 
-3. **选择分割点**
-   - 在地图上点击选择需要分割的区域
+3. **文本分割（主流程）**
+   - 在右侧输入英文提示词（如 `buildings`、`roads`、`trees`）
+   - 点击“开始分割”
+   - 分割结果会以多边形叠加显示，并进入对象列表
 
-4. **执行分割**
-   - 点击"开始分割"按钮
-   - AI将基于选择的点进行智能分割
-   - 分割结果将在地图上显示
+4. **手动补提对象（可选）**
+   - 在对象列表点击“添加”
+   - 在地图上点击目标位置，系统会用点提示分割提取单个对象
 
-5. **查看结果**
-   - 分割区域会以红色多边形显示
-   - 选择点会以绿色圆点显示
+5. **检查与导出**
+   - 在对象列表中选择/删除/编辑对象类型
+   - 点击“导出”生成 Shapefile ZIP
+
+6. **语音助手（可选，不替代以上流程）**
+   - 语音按钮可辅助执行定位、缩放、触发分割和导出
+   - 常规鼠标/面板操作仍是完整主流程，语音只是另一种入口
 
 ## 技术栈
 
@@ -142,35 +151,15 @@ uvicorn app.main:app --reload --port 8000
 
 ## API端点
 
-### `POST /api/segment`
-
-分割影像
-
-**参数:**
-
-- `file`: 影像文件 (multipart/form-data)
-- `points`: JSON字符串，包含点坐标和标签
-- `bounds`: (可选) JSON字符串，影像的地理边界
-
-**返回:**
-
-```json
-{
-  "success": true,
-  "geojson": {
-    "type": "FeatureCollection",
-    "features": [...]
-  }
-}
-```
-
-### `GET /health`
-
-健康检查
-
-### `GET /api/model-info`
-
-获取模型信息
+- `GET /health`：健康检查
+- `GET /api/model-info`：模型加载状态
+- `POST /api/segment-text`：文本提示分割（SAM3）
+- `POST /api/segment-single`：手动点选单对象分割（SAM1）
+- `POST /api/segment-batch`：批量点选分割
+- `POST /api/segment-auto`：自动分割（SAM3）
+- `POST /api/upload-tiff`：上传 GeoTIFF 并转换为 PNG 叠加层
+- `POST /api/export-shapefile`：导出 Shapefile ZIP
+- `POST /api/realtime/session`：创建语音实时会话 token（可选功能）
 
 ## 环境要求
 
@@ -208,6 +197,7 @@ uvicorn app.main:app --reload --port 8000
 2. **无法连接后端**
    - 确认后端服务运行在 http://localhost:8000
    - 检查浏览器控制台的CORS错误
+   - 开发环境确认 Vite 代理配置生效（`/api` -> `localhost:8000`）
 
 ### 后端问题
 
@@ -222,6 +212,10 @@ uvicorn app.main:app --reload --port 8000
 3. **CUDA错误**
    - 如果没有GPU，模型会自动使用CPU
    - 确保PyTorch版本与CUDA版本匹配
+
+4. **语音助手连接失败**
+   - 语音功能依赖 `OPENAI_API_KEY`
+   - 不影响文本分割、手动添加对象和导出等常规功能
 
 ## 许可证
 

@@ -16,6 +16,70 @@ interface UseVoiceToolsOptions {
   onTextPromptChange: (prompt: string) => void
 }
 
+function buildCaptureBounds(map: any) {
+  const bounds = map.getBounds()
+  const container = map.getContainer()
+  const width = container.clientWidth
+  const height = container.clientHeight
+
+  const topLeft = map.unproject([0, 0])
+  const topRight = map.unproject([width, 0])
+  const bottomRight = map.unproject([width, height])
+  const bottomLeft = map.unproject([0, height])
+
+  return {
+    west: bounds.getWest(),
+    south: bounds.getSouth(),
+    east: bounds.getEast(),
+    north: bounds.getNorth(),
+    corners: {
+      top_left: { lng: topLeft.lng, lat: topLeft.lat },
+      top_right: { lng: topRight.lng, lat: topRight.lat },
+      bottom_right: { lng: bottomRight.lng, lat: bottomRight.lat },
+      bottom_left: { lng: bottomLeft.lng, lat: bottomLeft.lat },
+    },
+  }
+}
+
+async function waitForStableMap(map: any): Promise<void> {
+  await new Promise<void>((resolve) => {
+    if (!map.isMoving() && map.loaded()) {
+      resolve()
+      return
+    }
+
+    let done = false
+    const tryResolve = () => {
+      if (done) return
+      if (!map.isMoving() && map.loaded()) {
+        done = true
+        map.off('moveend', tryResolve)
+        map.off('idle', tryResolve)
+        resolve()
+      }
+    }
+
+    map.on('moveend', tryResolve)
+    map.on('idle', tryResolve)
+    tryResolve()
+  })
+}
+
+async function waitForMoveEnd(map: any, timeoutMs: number = 3000): Promise<void> {
+  await new Promise<void>((resolve) => {
+    let done = false
+    const finish = () => {
+      if (done) return
+      done = true
+      map.off('moveend', finish)
+      resolve()
+    }
+
+    map.on('moveend', finish)
+    setTimeout(finish, timeoutMs)
+  })
+}
+
 // Capture current map view and run text-based segmentation
 async function captureAndSegment(
   mapRef: React.RefObject<any>,
@@ -29,11 +93,8 @@ async function captureAndSegment(
     const map = mapRef.current?.getMap()
     if (!map) return { count: 0, error: '地图未加载' }
 
-    // Wait for map to finish rendering
-    await new Promise<void>((resolve) => {
-      if (map.loaded()) resolve()
-      else map.once('idle', () => resolve())
-    })
+    // Wait until camera movement and tile rendering are both stable.
+    await waitForStableMap(map)
 
     // Capture map canvas
     const canvas = map.getCanvas()
@@ -45,13 +106,7 @@ async function captureAndSegment(
     const file = new File([blob], 'map-capture.png', { type: 'image/png' })
 
     // Get geographic bounds
-    const bounds = map.getBounds()
-    const boundsObj = {
-      west: bounds.getWest(),
-      south: bounds.getSouth(),
-      east: bounds.getEast(),
-      north: bounds.getNorth(),
-    }
+    const boundsObj = buildCaptureBounds(map)
 
     // Call segmentation API
     const result = await segmentImageWithText(file, textPrompt, boundsObj)
@@ -194,6 +249,13 @@ export function useVoiceTools(options: UseVoiceToolsOptions) {
             duration: 2000,
           })
         }
+
+        // Ensure any camera transition is fully settled before next tool runs.
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+        if (map.isMoving()) {
+          await waitForMoveEnd(map, 3000)
+        }
+        await waitForStableMap(map)
 
         return `已定位到${result.placeName || placeName}`
       }

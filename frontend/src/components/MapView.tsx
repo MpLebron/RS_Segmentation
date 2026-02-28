@@ -27,6 +27,55 @@ interface MapViewProps {
   } | null
 }
 
+async function waitForStableMap(map: any): Promise<void> {
+  await new Promise<void>((resolve) => {
+    if (!map.isMoving() && map.loaded()) {
+      resolve()
+      return
+    }
+
+    let done = false
+    const tryResolve = () => {
+      if (done) return
+      if (!map.isMoving() && map.loaded()) {
+        done = true
+        map.off('moveend', tryResolve)
+        map.off('idle', tryResolve)
+        resolve()
+      }
+    }
+
+    map.on('moveend', tryResolve)
+    map.on('idle', tryResolve)
+    tryResolve()
+  })
+}
+
+function buildCaptureBounds(map: any) {
+  const bounds = map.getBounds()
+  const container = map.getContainer()
+  const width = container.clientWidth
+  const height = container.clientHeight
+
+  const topLeft = map.unproject([0, 0])
+  const topRight = map.unproject([width, 0])
+  const bottomRight = map.unproject([width, height])
+  const bottomLeft = map.unproject([0, height])
+
+  return {
+    west: bounds.getWest(),
+    south: bounds.getSouth(),
+    east: bounds.getEast(),
+    north: bounds.getNorth(),
+    corners: {
+      top_left: { lng: topLeft.lng, lat: topLeft.lat },
+      top_right: { lng: topRight.lng, lat: topRight.lat },
+      bottom_right: { lng: bottomRight.lng, lat: bottomRight.lat },
+      bottom_left: { lng: bottomLeft.lng, lat: bottomLeft.lat },
+    },
+  }
+}
+
 function MapView({
   mapRef,
   detectedObjects,
@@ -167,14 +216,8 @@ function MapView({
         return
       }
 
-      // Wait for map to be fully rendered
-      await new Promise((resolve) => {
-        if (map.loaded()) {
-          resolve(null)
-        } else {
-          map.once('idle', () => resolve(null))
-        }
-      })
+      // Wait until camera movement and tile rendering are both stable.
+      await waitForStableMap(map)
 
       // Capture map canvas
       const canvas = map.getCanvas()
@@ -185,14 +228,8 @@ function MapView({
       const blob = await response.blob()
       const file = new File([blob], 'map-capture.png', { type: 'image/png' })
 
-      // Get bounds
-      const bounds = map.getBounds()
-      const boundsObj = {
-        west: bounds.getWest(),
-        south: bounds.getSouth(),
-        east: bounds.getEast(),
-        north: bounds.getNorth()
-      }
+      // Get viewport bounds and corner coordinates for robust geo conversion
+      const boundsObj = buildCaptureBounds(map)
 
       // Load the captured image to get its ACTUAL dimensions
       const img = new Image()

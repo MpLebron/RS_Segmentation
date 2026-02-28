@@ -92,7 +92,7 @@ class SAM3HFAPISegmenter:
     def segment_from_text(
         self,
         text_prompt: str,
-        confidence_threshold: float = 0.5
+        confidence_threshold: float = 0.3
     ) -> List[Dict]:
         """
         Segment image using text prompt via Hugging Face API.

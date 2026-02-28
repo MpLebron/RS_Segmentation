@@ -25,9 +25,8 @@ function VoiceControl({
   onExportShapefile,
   onTextPromptChange,
 }: VoiceControlProps) {
-  const [isActive, setIsActive] = useState(false)
   const [transcripts, setTranscripts] = useState<TranscriptEntry[]>([])
-  const [showTranscript, setShowTranscript] = useState(false)
+  const [showTranscript, setShowTranscript] = useState(true)
   const transcriptEndRef = useRef<HTMLDivElement>(null)
 
   // Auto-scroll transcript panel
@@ -149,32 +148,52 @@ function VoiceControl({
 
   // Toggle voice connection
   const handleToggle = async () => {
-    if (isActive) {
+    const shouldStop = state.status === 'connected' || state.status === 'connecting'
+
+    if (shouldStop) {
       disconnect()
-      setIsActive(false)
-      setShowTranscript(false)
     } else {
       setTranscripts([])
       await connect()
-      setIsActive(true)
-      setShowTranscript(true)
     }
   }
 
-  // Determine button style based on status
-  const getButtonClass = () => {
-    if (state.status === 'error') return 'voice-btn error'
-    if (state.status === 'connecting') return 'voice-btn connecting'
-    if (state.status === 'connected') return 'voice-btn active'
-    return 'voice-btn'
+  const getStatusTitle = () => {
+    switch (state.status) {
+      case 'connecting':
+        return '正在连接语音通道'
+      case 'connected':
+        return '实时语音已连接'
+      case 'error':
+        return '连接失败'
+      default:
+        return '语音助手待命中'
+    }
   }
 
-  const getStatusText = () => {
+  const getStatusSubtitle = () => {
     switch (state.status) {
-      case 'connecting': return '正在连接...'
-      case 'connected': return '语音已连接 - 请说话'
-      case 'error': return state.error || '连接错误'
-      default: return '点击开启语音助手'
+      case 'connecting':
+        return '请稍候，正在建立实时会话'
+      case 'connected':
+        return '可以直接说出定位、识别、缩放、导出等指令'
+      case 'error':
+        return state.error || '请检查网络与服务配置后重试'
+      default:
+        return '点击麦克风按钮即可开始对话'
+    }
+  }
+
+  const getPresenceLabel = () => {
+    switch (state.status) {
+      case 'connecting':
+        return 'Connecting'
+      case 'connected':
+        return 'Live'
+      case 'error':
+        return 'Error'
+      default:
+        return 'Offline'
     }
   }
 
@@ -208,33 +227,61 @@ function VoiceControl({
 
   return (
     <div className="voice-control">
-      {/* Transcript panel */}
-      {showTranscript && transcripts.length > 0 && (
-        <div className="voice-transcript">
-          {transcripts.slice(-8).map((entry, i) => (
-            <div key={`${entry.timestamp}-${i}`} className={`transcript-line ${entry.role}`}>
-              <span className="transcript-role">
-                {entry.role === 'user' ? '你' : 'AI'}
-              </span>
-              <span className="transcript-text">{entry.text}</span>
-            </div>
-          ))}
-          <div ref={transcriptEndRef} />
+      <div className={`voice-shell status-${state.status}`}>
+        <div className="voice-head">
+          <div className={`voice-presence state-${state.status}`}>
+            <span className="presence-dot" />
+            <span>{getPresenceLabel()}</span>
+          </div>
+
+          <button
+            type="button"
+            className="voice-log-toggle"
+            onClick={() => setShowTranscript(prev => !prev)}
+          >
+            {showTranscript ? '隐藏记录' : '显示记录'}
+          </button>
         </div>
-      )}
 
-      {/* Status text */}
-      <div className="voice-status">{getStatusText()}</div>
+        {showTranscript && (
+          <div className="voice-transcript">
+            {transcripts.length === 0 ? (
+              <div className="transcript-empty">语音记录会显示在这里</div>
+            ) : (
+              transcripts.slice(-8).map((entry, i) => (
+                <div key={`${entry.timestamp}-${i}`} className={`transcript-bubble ${entry.role}`}>
+                  <span className="bubble-role">{entry.role === 'user' ? '你' : 'AI'}</span>
+                  <span className="bubble-text">{entry.text}</span>
+                </div>
+              ))
+            )}
+            <div ref={transcriptEndRef} />
+          </div>
+        )}
 
-      {/* Microphone button */}
-      <button
-        className={getButtonClass()}
-        onClick={handleToggle}
-        title={getStatusText()}
-      >
-        {state.status === 'connected' && <span className="voice-pulse" />}
-        {getMicIcon()}
-      </button>
+        <div className="voice-core">
+          <div className="voice-orbit" aria-hidden="true">
+            <span className="orbit-ring ring-a" />
+            <span className="orbit-ring ring-b" />
+            <span className="orbit-ring ring-c" />
+          </div>
+
+          <button
+            type="button"
+            className={`voice-btn state-${state.status}`}
+            onClick={handleToggle}
+            title={getStatusTitle()}
+            aria-label={getStatusTitle()}
+          >
+            {getMicIcon()}
+          </button>
+        </div>
+
+        <div className="voice-status">
+          <div className="voice-status-title">{getStatusTitle()}</div>
+          <div className="voice-status-subtitle">{getStatusSubtitle()}</div>
+        </div>
+      </div>
     </div>
   )
 }

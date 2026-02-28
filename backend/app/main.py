@@ -99,6 +99,21 @@ class ImageBounds(BaseModel):
 sam_segmenter = None
 sam3_segmenter = None  # For SAM3 features
 
+
+def _extract_result_confidence(result: dict) -> float:
+    """
+    Normalize confidence field across different SAM3 backends.
+    Some implementations return `score`, others return `confidence`.
+    """
+    value = result.get("confidence")
+    if value is None:
+        value = result.get("score")
+
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 1.0
+
 @app.get("/")
 async def root():
     return {"message": "GuZhu AI Service is running"}
@@ -425,7 +440,7 @@ async def segment_image_with_text(
                     for j, polygon in enumerate(polygons):
                         # Calculate pixel area
                         pixel_area = int(np.sum(mask))
-                        confidence = result.get('confidence', 1.0)
+                        confidence = _extract_result_confidence(result)
 
                         if bounds:
                             bounds_data = json.loads(bounds)
@@ -489,7 +504,7 @@ async def segment_image_automatic(
     file: UploadFile = File(...),
     bounds: Optional[str] = Form(None),
     bearing: float = Form(0.0),
-    min_confidence: float = Form(0.8),
+    min_confidence: float = Form(0.3),
     min_size: Optional[int] = Form(None),
     max_size: Optional[int] = Form(None)
 ):
@@ -500,7 +515,7 @@ async def segment_image_automatic(
         file: Image file
         bounds: Optional JSON string of image geographic bounds
         bearing: Map rotation angle in degrees (0 = north up, positive = clockwise), default 0.0
-        min_confidence: Minimum confidence threshold (0-1), default 0.8
+        min_confidence: Minimum confidence threshold (0-1), default 0.3
         min_size: Minimum object size in pixels (area), optional
         max_size: Maximum object size in pixels (area), optional
 
@@ -613,7 +628,15 @@ async def segment_image_automatic(
                     for j, polygon in enumerate(polygons):
                         # Calculate pixel area
                         pixel_area = int(np.sum(mask))
-                        confidence = result.get('confidence', 1.0)
+                        confidence = _extract_result_confidence(result)
+
+                        # Apply filters for automatic mode (these are endpoint parameters)
+                        if confidence < min_confidence:
+                            continue
+                        if min_size is not None and pixel_area < min_size:
+                            continue
+                        if max_size is not None and pixel_area > max_size:
+                            continue
 
                         if bounds:
                             bounds_data = json.loads(bounds)

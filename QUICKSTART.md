@@ -33,6 +33,10 @@ source venv/bin/activate  # macOS/Linux
 # 安装依赖
 pip install -r requirements.txt
 
+# （可选）语音助手配置：仅语音功能需要
+# 不使用语音时可跳过
+# export OPENAI_API_KEY=your_openai_api_key
+
 # 创建模型目录
 mkdir -p models/checkpoints
 
@@ -88,17 +92,19 @@ npm run dev
 
 ## 使用流程
 
-1. **上传影像** - 点击右侧面板的文件选择按钮
-2. **选择点位** - 在地图上点击要分割的区域
-3. **执行分割** - 点击"开始分割"按钮
-4. **查看结果** - 分割结果会以红色多边形显示在地图上
+1. **上传影像（推荐）** - 点击右侧面板导入 GeoTIFF（也可直接用底图）
+2. **文本分割（主流程）** - 输入英文提示词（如 `buildings` / `roads` / `trees`）并点击“开始分割”
+3. **手动补提（可选）** - 点击对象列表“添加”，在地图上点选补充单个对象
+4. **检查结果** - 在对象列表中选择、删除或修改对象类型
+5. **导出数据** - 点击“导出”生成 Shapefile ZIP
+6. **语音助手（可选）** - 可辅助定位/缩放/触发分割/导出，但不替代上述 UI 流程
 
 ## 验证安装
 
 ### 检查后端
 ```bash
 curl http://localhost:8000/health
-# 应返回: {"status":"healthy","sam_loaded":false}
+# 应返回类似: {"status":"healthy","sam_loaded":false,"sam3_available":true}
 ```
 
 ### 检查前端
@@ -117,6 +123,9 @@ curl http://localhost:8000/health
 
 ### Q4: 前端无法连接后端
 **A:** 确保后端运行在 http://localhost:8000，检查防火墙设置
+
+### Q4.1: 语音助手无法连接
+**A:** 确认后端已配置 `OPENAI_API_KEY`。语音功能是可选项，失败不影响常规分割与导出流程。
 
 ### Q5: 内存不足
 **A:** 尝试使用较小的模型:
