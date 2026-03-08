@@ -1,230 +1,247 @@
-# GuZhu - AI Image Segmentation Platform
+# 佳格图像分割智能体（RS_Segmentation）
 
-一个基于 SAM / SAM3 的智能影像分割平台，具有交互式地图界面，并提供语音助手作为可选交互方式（不替代常规界面操作流程）。
+一个面向遥感/GIS 场景的智能影像分割系统，基于 SAM / SAM3 提供文本分割、手动点选补提、GeoTIFF 叠加浏览、Shapefile 导出，以及语音助手这一种可选交互方式。
+
+语音助手不是主流程替代品。完整工作流始终是：
+
+1. 导入影像或使用底图
+2. 文本提示分割
+3. 手动添加对象补提/修正
+4. 检查结果并导出
+
+## 在线地址
+
+- 在线访问：<https://sam-agent.gagogroup.cn>
+- HTTPS 已启用，语音功能可直接在浏览器中申请麦克风权限
+
+## 核心能力
+
+- GeoTIFF 导入与地图叠加显示
+- 基于 SAM3 的文本提示分割
+- 基于 SAM1 的点选单对象补提
+- 对象列表管理与缩略图预览
+- GeoJSON 结果生成与 Shapefile ZIP 导出
+- 语音助手辅助定位、缩放、触发分割和导出
+- 语音链路走服务端中转，终端浏览器无需直连 OpenAI
+
+## 典型使用流程
+
+1. 在右侧面板导入 GeoTIFF，或直接使用底图
+2. 输入英文提示词，例如 `buildings`、`roads`、`trees`、`farmland`
+3. 点击“开始分割”，批量提取目标对象
+4. 如有漏提，点击对象列表中的“添加”，在地图上点选补提单个对象
+5. 在对象列表中检查、删除或调整对象类型
+6. 点击“导出”生成 Shapefile ZIP
+7. 如需更自然的交互，可使用语音助手辅助执行定位、缩放、分割和导出
 
 ## 项目结构
 
-```
+```text
 GuZhu/
-├── frontend/          # React + TypeScript + Mapbox 前端
+├── frontend/                  # React + TypeScript + Vite 前端
 │   ├── src/
-│   │   ├── components/
-│   │   │   ├── MapView.tsx       # Mapbox地图组件
-│   │   │   └── ControlPanel.tsx  # 控制面板组件
-│   │   ├── services/
-│   │   │   └── api.ts            # API服务
-│   │   ├── styles/               # 样式文件
-│   │   └── types/                # TypeScript类型定义
-│   └── package.json
-│
-├── backend/           # FastAPI 后端服务
+│   │   ├── components/        # UI 组件
+│   │   ├── config/            # 语音与业务配置
+│   │   ├── hooks/             # 地图、语音、业务逻辑
+│   │   ├── services/          # API 请求
+│   │   └── types/             # 前端类型定义
+│   ├── nginx.conf             # 生产静态服务与 API/WebSocket 代理
+│   └── Dockerfile
+├── backend/                   # FastAPI + SAM/SAM3 后端
 │   ├── app/
-│   │   └── main.py               # FastAPI应用主文件
-│   ├── models/
-│   │   ├── sam_model.py          # SAM模型集成
-│   │   └── coordinate_converter.py # 坐标转换工具
-│   └── requirements.txt
-│
+│   │   ├── main.py            # 主 API
+│   │   └── realtime.py        # OpenAI Realtime 服务端中转
+│   ├── models/                # SAM、SAM3 与坐标转换逻辑
+│   ├── requirements.txt
+│   └── Dockerfile
+├── docker-compose.yml         # 基础 Compose 配置
+├── docker-compose.server.yml  # 服务器部署配置
+├── QUICKSTART.md              # 快速启动指南
 └── README.md
 ```
-
-## 功能特性
-
-- 🗺️ 交互式 Mapbox 地图界面（支持 GeoTIFF 叠加）
-- 📝 文本提示分割（SAM3，适合批量识别同类对象）
-- 🎯 手动点选添加对象（SAM1，适合补提/修正）
-- 📍 地理坐标与像素坐标转换（输出 GeoJSON）
-- 📦 Shapefile 导出（ZIP）
-- 🎙️ 语音助手（可选交互入口，可执行定位/缩放/分割/导出）
-
-## 快速开始
-
-### 1. 前端设置
-
-```bash
-cd frontend
-
-# 安装依赖
-npm install
-
-# 配置环境变量（Mapbox Token 必需）
-cat > .env <<EOF
-VITE_MAPBOX_TOKEN=your_mapbox_token_here
-EOF
-
-# 启动开发服务器
-npm run dev
-```
-
-前端将运行在: http://localhost:3000
-
-**获取Mapbox Token:**
-
-1. 访问 https://www.mapbox.com/
-2. 注册/登录账号
-3. 在 https://account.mapbox.com/ 获取 Access Token
-
-### 2. 后端设置
-
-```bash
-cd backend
-
-# 创建虚拟环境
-python -m venv venv
-
-# 激活虚拟环境
-# macOS/Linux:
-source venv/bin/activate
-# Windows:
-# venv\Scripts\activate
-
-# 安装依赖
-pip install -r requirements.txt
-
-# （可选）语音助手需要 OpenAI API Key
-# 如果不使用语音功能，可以跳过
-# export OPENAI_API_KEY=your_openai_api_key
-
-# 下载SAM模型
-# 创建checkpoints目录
-mkdir -p models/checkpoints
-
-# 下载模型文件（选择一个）:
-# ViT-H (推荐，最佳质量，2.4GB):
-wget -P models/checkpoints/ https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth
-
-# 或者 ViT-L (中等大小，1.2GB):
-# wget -P models/checkpoints/ https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth
-
-# 或者 ViT-B (轻量级，375MB):
-# wget -P models/checkpoints/ https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth
-
-# 启动后端服务
-uvicorn app.main:app --reload --port 8000
-```
-
-后端将运行在: http://localhost:8000
-
-**API文档:** http://localhost:8000/docs
-
-## 使用说明
-
-1. **启动服务**
-   - 在两个终端分别启动前端和后端服务
-
-2. **导入影像（推荐）**
-   - 在右侧控制面板上传 GeoTIFF（也可直接使用底图进行识别）
-
-3. **文本分割（主流程）**
-   - 在右侧输入英文提示词（如 `buildings`、`roads`、`trees`）
-   - 点击“开始分割”
-   - 分割结果会以多边形叠加显示，并进入对象列表
-
-4. **手动补提对象（可选）**
-   - 在对象列表点击“添加”
-   - 在地图上点击目标位置，系统会用点提示分割提取单个对象
-
-5. **检查与导出**
-   - 在对象列表中选择/删除/编辑对象类型
-   - 点击“导出”生成 Shapefile ZIP
-
-6. **语音助手（可选，不替代以上流程）**
-   - 语音按钮可辅助执行定位、缩放、触发分割和导出
-   - 常规鼠标/面板操作仍是完整主流程，语音只是另一种入口
 
 ## 技术栈
 
 ### 前端
 
-- **框架**: React 18 + TypeScript
-- **构建工具**: Vite
-- **地图**: Mapbox GL JS + react-map-gl
-- **样式**: CSS (深色主题)
+- React 18
+- TypeScript
+- Vite
+- Mapbox GL JS / react-map-gl
+- 原生 Web Audio API
 
 ### 后端
 
-- **框架**: FastAPI
-- **AI模型**: Segment Anything Model (SAM)
-- **深度学习**: PyTorch
-- **图像处理**: OpenCV, Pillow
-- **坐标转换**: PyProj
+- FastAPI
+- PyTorch
+- SAM / SAM3
+- Pillow / OpenCV / Rasterio / GeoPandas
+- OpenAI Realtime API（服务端 WebSocket relay）
 
-## API端点
+## 运行要求
 
-- `GET /health`：健康检查
-- `GET /api/model-info`：模型加载状态
-- `POST /api/segment-text`：文本提示分割（SAM3）
-- `POST /api/segment-single`：手动点选单对象分割（SAM1）
-- `POST /api/segment-batch`：批量点选分割
-- `POST /api/segment-auto`：自动分割（SAM3）
-- `POST /api/upload-tiff`：上传 GeoTIFF 并转换为 PNG 叠加层
-- `POST /api/export-shapefile`：导出 Shapefile ZIP
-- `POST /api/realtime/session`：创建语音实时会话 token（可选功能）
+- Node.js >= 18
+- Python >= 3.10
+- 建议使用 CUDA GPU 运行 SAM / SAM3
+- Mapbox Token（前端地图必需）
+- Hugging Face Token（SAM3 模型下载/访问通常需要）
+- OpenAI API Key（仅语音功能需要，可选）
 
-## 环境要求
+## 本地开发
 
-- **Node.js**: >= 18.0.0
-- **Python**: >= 3.8
-- **GPU**: CUDA兼容GPU（可选，用于加速推理）
+### 方式 A：前后端分别启动
 
-## 开发
-
-### 前端开发
+#### 1. 前端
 
 ```bash
 cd frontend
-npm run dev      # 开发模式
-npm run build    # 生产构建
-npm run preview  # 预览构建结果
+npm install
+
+cat > .env <<'EOF'
+VITE_MAPBOX_TOKEN=your_mapbox_token_here
+EOF
+
+npm run dev
 ```
 
-### 后端开发
+默认访问地址：<http://localhost:3000>
+
+#### 2. 后端
 
 ```bash
 cd backend
-# 确保虚拟环境已激活
+python -m venv venv
+source venv/bin/activate
+
+pip install -r requirements.txt
+
+# 仅语音功能需要
+export OPENAI_API_KEY=your_openai_api_key
+
+# SAM3 常见需要
+export HUGGINGFACE_TOKEN=your_huggingface_token
+
+mkdir -p models/checkpoints
+wget -O models/checkpoints/sam_vit_h.pth \
+  https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth
+
 uvicorn app.main:app --reload --port 8000
 ```
 
-## 故障排除
+默认访问地址：<http://localhost:8000>
 
-### 前端问题
+API 文档：<http://localhost:8000/docs>
 
-1. **Mapbox地图不显示**
-   - 检查 `.env` 文件中的 `VITE_MAPBOX_TOKEN` 是否正确
-   - 确认token有效且未超过使用限制
+### 方式 B：Docker Compose
 
-2. **无法连接后端**
-   - 确认后端服务运行在 http://localhost:8000
-   - 检查浏览器控制台的CORS错误
-   - 开发环境确认 Vite 代理配置生效（`/api` -> `localhost:8000`）
+```bash
+cp .env.example .env
+```
 
-### 后端问题
+编辑根目录 `.env`，至少补齐：
 
-1. **SAM模型加载失败**
-   - 确认模型文件路径正确: `backend/models/checkpoints/sam_vit_h.pth`
-   - 检查模型文件是否完整下载
+```bash
+VITE_MAPBOX_TOKEN=your_mapbox_token_here
+HUGGINGFACE_TOKEN=your_huggingface_token_here
+OPENAI_API_KEY=your_openai_api_key
+```
 
-2. **内存不足**
-   - 尝试使用较小的模型 (ViT-B 或 ViT-L)
-   - 减小输入影像尺寸
+准备 SAM1 checkpoint：
 
-3. **CUDA错误**
-   - 如果没有GPU，模型会自动使用CPU
-   - 确保PyTorch版本与CUDA版本匹配
+```bash
+mkdir -p backend/models/checkpoints
+wget -O backend/models/checkpoints/sam_vit_h.pth \
+  https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth
+```
 
-4. **语音助手连接失败**
-   - 语音功能依赖 `OPENAI_API_KEY`
-   - 不影响文本分割、手动添加对象和导出等常规功能
+启动：
 
-## 许可证
+```bash
+docker compose up --build
+```
 
-MIT License
+默认对外端口：
 
-## 贡献
+- 前端：<http://localhost>
+- 后端健康检查：<http://localhost/health>
 
-欢迎提交Issue和Pull Request!
+## 语音助手说明
 
-## 联系方式
+- 语音助手是可选入口，不替代常规面板操作
+- 当前实现已改为服务端中转模式：
+  - 浏览器只连接你的站点
+  - 后端再连接 OpenAI Realtime
+- 这意味着终端用户本地不需要自己直连 OpenAI
+- 但服务器本身仍然需要具备访问 OpenAI 的网络能力
+- 浏览器仍需满足两个条件：
+  - 页面运行在 HTTPS 或 localhost
+  - 用户允许麦克风权限
 
-项目地址: https://github.com/yourusername/GuZhu
+## 分割模式说明
+
+### 文本提示分割
+
+- 主要用于批量识别同类目标
+- 当前由 SAM3 负责
+- 适合道路、建筑、树木、水体、田块等对象
+
+### 手动点选补提
+
+- 主要用于修正漏提目标
+- 当前由 SAM1 负责
+- 在 GPU 显存紧张时可自动回退到 CPU，以避免直接失败
+
+## 主要 API
+
+- `GET /health`：服务健康检查
+- `GET /api/model-info`：模型状态
+- `POST /api/upload-tiff`：上传 GeoTIFF
+- `POST /api/segment-text`：文本分割（SAM3）
+- `POST /api/segment-auto`：自动分割（SAM3）
+- `POST /api/segment-single`：单点补提（SAM1）
+- `POST /api/segment-batch`：批量点选分割
+- `POST /api/export-shapefile`：导出 Shapefile ZIP
+- `POST /api/realtime/session`：获取实时语音会话信息（兼容接口）
+- `WS /api/realtime/ws`：语音实时 WebSocket relay
+
+## 常见问题
+
+### 1. 地图不显示
+
+- 检查 `VITE_MAPBOX_TOKEN` 是否配置正确
+- 检查 Token 是否有效、是否超出额度
+
+### 2. 文本分割失败或返回为空
+
+- 确认后端已正常加载 SAM3
+- 确认 Hugging Face Token 可访问对应模型
+- 尝试更稳定、通用的英文提示词
+
+### 3. 点选补提失败
+
+- 确认 `backend/models/checkpoints/sam_vit_h.pth` 存在
+- 若服务器 GPU 显存不足，当前版本会自动回退到 CPU，速度会变慢但不应直接报错
+
+### 4. 语音助手连接失败
+
+- 确认后端已配置 `OPENAI_API_KEY`
+- 确认服务器出网代理正常
+- 确认当前站点是 HTTPS
+- 确认浏览器已授权麦克风
+- 语音失败不影响文本分割、手动补提和导出流程
+
+### 5. 浏览器提示无法使用麦克风
+
+- 检查当前页面是否为 HTTPS 或 localhost
+- 检查浏览器站点权限中的麦克风是否被阻止
+- 检查系统级麦克风权限
+
+## 相关链接
+
+- 在线系统：<https://sam-agent.gagogroup.cn>
+- 快速启动：`QUICKSTART.md`
+- 项目概览：`PROJECT_SUMMARY.md`
+
+## License
+
+MIT
