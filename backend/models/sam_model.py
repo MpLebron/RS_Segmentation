@@ -17,7 +17,8 @@ class SAMSegmenter:
             model_type: Model type (vit_h, vit_l, vit_b)
             checkpoint_path: Path to model checkpoint
         """
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        requested_device = os.getenv("SAM_DEVICE")
+        self.device = requested_device or ("cuda" if torch.cuda.is_available() else "cpu")
         self.model_type = model_type
 
         if checkpoint_path is None:
@@ -37,9 +38,27 @@ class SAMSegmenter:
 
         print(f"Loading SAM model ({model_type}) on {self.device}...")
         self.sam = sam_model_registry[model_type](checkpoint=checkpoint_path)
-        self.sam.to(device=self.device)
+        self._move_model_to_device_with_fallback()
         self.predictor = SamPredictor(self.sam)
         print(f"SAM model loaded successfully!")
+
+    def _move_model_to_device_with_fallback(self):
+        """
+        Prefer GPU, but fall back to CPU when the server is already saturated.
+        Point-based extraction is slower on CPU, but still usable.
+        """
+        try:
+            if self.device == "cuda":
+                torch.cuda.empty_cache()
+            self.sam.to(device=self.device)
+        except (torch.OutOfMemoryError, RuntimeError) as exc:
+            if self.device != "cuda" or "out of memory" not in str(exc).lower():
+                raise
+
+            print("CUDA out of memory while loading SAM model, falling back to CPU...")
+            torch.cuda.empty_cache()
+            self.device = "cpu"
+            self.sam.to(device=self.device)
 
     def set_image(self, image: np.ndarray):
         """Set image for segmentation"""

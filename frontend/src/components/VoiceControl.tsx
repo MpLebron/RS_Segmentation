@@ -66,7 +66,8 @@ function VoiceControl({
       }
 
       // AI response text completed
-      case 'response.audio_transcript.done': {
+      case 'response.audio_transcript.done':
+      case 'response.output_audio_transcript.done': {
         const transcript = (event as any).transcript as string
         if (transcript?.trim()) {
           setTranscripts(prev => [...prev, {

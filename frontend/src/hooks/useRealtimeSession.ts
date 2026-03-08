@@ -1,6 +1,13 @@
-import { useState, useRef, useCallback } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import type { RealtimeEvent, ToolDefinition, VoiceStatus } from '../types/voice'
 import { REALTIME_MODEL, VAD_CONFIG } from '../config/voiceConfig'
+
+const TARGET_SAMPLE_RATE = 24000
+const PROCESSOR_BUFFER_SIZE = 4096
+
+type ExtendedWindow = Window & typeof globalThis & {
+  webkitAudioContext?: typeof AudioContext
+}
 
 export interface RealtimeSessionState {
   status: VoiceStatus
@@ -14,6 +21,137 @@ interface UseRealtimeSessionOptions {
   voice?: string
 }
 
+function getAudioContextConstructor(): typeof AudioContext {
+  const audioContextConstructor = window.AudioContext || (window as ExtendedWindow).webkitAudioContext
+  if (!audioContextConstructor) {
+    throw new Error('当前浏览器不支持 Web Audio API')
+  }
+  return audioContextConstructor
+}
+
+function getRealtimeWebSocketUrl(): string {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${protocol}//${window.location.host}/api/realtime/ws`
+}
+
+function floatToPcm16(value: number): number {
+  const clamped = Math.max(-1, Math.min(1, value))
+  return clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff
+}
+
+function downsampleToPcm16(input: ArrayLike<number>, inputSampleRate: number, targetSampleRate: number): Int16Array {
+  if (input.length === 0) {
+    return new Int16Array(0)
+  }
+
+  if (inputSampleRate === targetSampleRate) {
+    const pcm16 = new Int16Array(input.length)
+    for (let index = 0; index < input.length; index += 1) {
+      pcm16[index] = floatToPcm16(input[index])
+    }
+    return pcm16
+  }
+
+  const sampleRateRatio = inputSampleRate / targetSampleRate
+  const outputLength = Math.max(1, Math.round(input.length / sampleRateRatio))
+  const output = new Int16Array(outputLength)
+
+  let inputOffset = 0
+  for (let outputIndex = 0; outputIndex < outputLength; outputIndex += 1) {
+    const nextInputOffset = Math.min(
+      input.length,
+      Math.round((outputIndex + 1) * sampleRateRatio),
+    )
+
+    let total = 0
+    let count = 0
+
+    for (let index = inputOffset; index < nextInputOffset; index += 1) {
+      total += input[index]
+      count += 1
+    }
+
+    const sample = count > 0 ? total / count : input[Math.min(inputOffset, input.length - 1)]
+    output[outputIndex] = floatToPcm16(sample)
+    inputOffset = nextInputOffset
+  }
+
+  return output
+}
+
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  let binary = ''
+  const chunkSize = 0x8000
+
+  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+    const chunk = bytes.subarray(offset, offset + chunkSize)
+    binary += String.fromCharCode(...chunk)
+  }
+
+  return window.btoa(binary)
+}
+
+function pcm16ToBase64(pcm16: Int16Array): string {
+  return uint8ArrayToBase64(new Uint8Array(pcm16.buffer))
+}
+
+function base64ToPcm16(base64Audio: string): Int16Array {
+  const binary = window.atob(base64Audio)
+  const bytes = new Uint8Array(binary.length)
+
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index)
+  }
+
+  return new Int16Array(bytes.buffer)
+}
+
+function pcm16ToFloat32(pcm16: Int16Array): number[] {
+  const float32 = new Array<number>(pcm16.length)
+
+  for (let index = 0; index < pcm16.length; index += 1) {
+    float32[index] = pcm16[index] / 0x8000
+  }
+
+  return float32
+}
+
+function isAudioDeltaEvent(event: RealtimeEvent): boolean {
+  return event.type === 'response.audio.delta' || event.type === 'response.output_audio.delta'
+}
+
+function extractAudioDelta(event: RealtimeEvent): string | null {
+  const delta = event.delta
+  return typeof delta === 'string' ? delta : null
+}
+
+function extractRealtimeErrorMessage(event: RealtimeEvent): string | null {
+  const error = event.error
+  if (!error || typeof error !== 'object') {
+    return null
+  }
+
+  const message = (error as { message?: unknown }).message
+  return typeof message === 'string' ? message : null
+}
+
+async function getPreferredMicrophoneStream(): Promise<MediaStream> {
+  const devices = await navigator.mediaDevices.enumerateDevices()
+  const audioInputs = devices.filter((device) => device.kind === 'audioinput')
+  const preferredInput = audioInputs.find((device) => {
+    const label = device.label.toLowerCase()
+    return label && !label.includes('virtual') && !label.includes('omi')
+  })
+
+  if (preferredInput) {
+    return navigator.mediaDevices.getUserMedia({
+      audio: { deviceId: { exact: preferredInput.deviceId } },
+    })
+  }
+
+  return navigator.mediaDevices.getUserMedia({ audio: true })
+}
+
 export function useRealtimeSession(options: UseRealtimeSessionOptions) {
   const { onEvent, tools, instructions, voice = 'alloy' } = options
 
@@ -22,227 +160,313 @@ export function useRealtimeSession(options: UseRealtimeSessionOptions) {
     error: null,
   })
 
-  const pcRef = useRef<RTCPeerConnection | null>(null)
-  const dcRef = useRef<RTCDataChannel | null>(null)
-  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const wsRef = useRef<WebSocket | null>(null)
   const micStreamRef = useRef<MediaStream | null>(null)
+  const inputAudioContextRef = useRef<AudioContext | null>(null)
+  const inputSourceRef = useRef<MediaStreamAudioSourceNode | null>(null)
+  const inputProcessorRef = useRef<ScriptProcessorNode | null>(null)
+  const inputSinkRef = useRef<GainNode | null>(null)
+  const outputAudioContextRef = useRef<AudioContext | null>(null)
+  const activeSourcesRef = useRef<AudioBufferSourceNode[]>([])
+  const nextPlaybackTimeRef = useRef(0)
+  const intentionalDisconnectRef = useRef(false)
 
-  const sendEvent = useCallback((event: object) => {
-    const dc = dcRef.current
-    if (dc && dc.readyState === 'open') {
-      dc.send(JSON.stringify(event))
-    }
+  const stopAudioPlayback = useCallback(() => {
+    nextPlaybackTimeRef.current = 0
+    const activeSources = activeSourcesRef.current.splice(0)
+    activeSources.forEach((source) => {
+      source.onended = null
+      try {
+        source.stop()
+      } catch {
+        // Ignore sources that already finished.
+      }
+      source.disconnect()
+    })
   }, [])
 
-  const disconnect = useCallback(() => {
-    // Close data channel
-    if (dcRef.current) {
-      dcRef.current.close()
-      dcRef.current = null
+  const releaseAudioResources = useCallback(() => {
+    stopAudioPlayback()
+
+    if (inputProcessorRef.current) {
+      inputProcessorRef.current.onaudioprocess = null
+      inputProcessorRef.current.disconnect()
+      inputProcessorRef.current = null
     }
 
-    // Stop microphone tracks
+    if (inputSourceRef.current) {
+      inputSourceRef.current.disconnect()
+      inputSourceRef.current = null
+    }
+
+    if (inputSinkRef.current) {
+      inputSinkRef.current.disconnect()
+      inputSinkRef.current = null
+    }
+
     if (micStreamRef.current) {
-      micStreamRef.current.getTracks().forEach(track => track.stop())
+      micStreamRef.current.getTracks().forEach((track) => track.stop())
       micStreamRef.current = null
     }
 
-    // Close peer connection
-    if (pcRef.current) {
-      pcRef.current.close()
-      pcRef.current = null
+    if (inputAudioContextRef.current) {
+      const audioContext = inputAudioContextRef.current
+      inputAudioContextRef.current = null
+      void audioContext.close().catch(() => undefined)
     }
 
-    // Stop audio playback
-    if (audioRef.current) {
-      audioRef.current.srcObject = null
+    if (outputAudioContextRef.current) {
+      const audioContext = outputAudioContextRef.current
+      outputAudioContextRef.current = null
+      void audioContext.close().catch(() => undefined)
     }
+  }, [stopAudioPlayback])
 
-    setState({ status: 'disconnected', error: null })
+  const sendEvent = useCallback((event: object) => {
+    const socket = wsRef.current
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify(event))
+    }
   }, [])
+
+  const ensureOutputAudioContext = useCallback(async () => {
+    if (!outputAudioContextRef.current) {
+      const AudioContextConstructor = getAudioContextConstructor()
+      outputAudioContextRef.current = new AudioContextConstructor({
+        sampleRate: TARGET_SAMPLE_RATE,
+      })
+    }
+
+    if (outputAudioContextRef.current.state === 'suspended') {
+      await outputAudioContextRef.current.resume()
+    }
+
+    return outputAudioContextRef.current
+  }, [])
+
+  const queueAudioPlayback = useCallback(async (base64Audio: string) => {
+    if (!base64Audio) {
+      return
+    }
+
+    const outputAudioContext = await ensureOutputAudioContext()
+    const pcm16 = base64ToPcm16(base64Audio)
+
+    if (pcm16.length === 0) {
+      return
+    }
+
+    const audioBuffer = outputAudioContext.createBuffer(1, pcm16.length, TARGET_SAMPLE_RATE)
+    audioBuffer.getChannelData(0).set(pcm16ToFloat32(pcm16))
+
+    const source = outputAudioContext.createBufferSource()
+    source.buffer = audioBuffer
+    source.connect(outputAudioContext.destination)
+
+    const startTime = Math.max(outputAudioContext.currentTime + 0.02, nextPlaybackTimeRef.current)
+    nextPlaybackTimeRef.current = startTime + audioBuffer.duration
+
+    activeSourcesRef.current.push(source)
+    source.onended = () => {
+      activeSourcesRef.current = activeSourcesRef.current.filter((item) => item !== source)
+      source.disconnect()
+    }
+    source.start(startTime)
+  }, [ensureOutputAudioContext])
+
+  const startMicrophoneStreaming = useCallback(async (socket: WebSocket) => {
+    const micStream = await getPreferredMicrophoneStream()
+    micStreamRef.current = micStream
+
+    const AudioContextConstructor = getAudioContextConstructor()
+    const inputAudioContext = new AudioContextConstructor()
+    inputAudioContextRef.current = inputAudioContext
+
+    if (inputAudioContext.state === 'suspended') {
+      await inputAudioContext.resume()
+    }
+
+    const source = inputAudioContext.createMediaStreamSource(micStream)
+    const processor = inputAudioContext.createScriptProcessor(PROCESSOR_BUFFER_SIZE, 1, 1)
+    const mutedSink = inputAudioContext.createGain()
+    mutedSink.gain.value = 0
+
+    processor.onaudioprocess = (audioProcessingEvent) => {
+      if (socket.readyState !== WebSocket.OPEN) {
+        return
+      }
+
+      const channelData = audioProcessingEvent.inputBuffer.getChannelData(0)
+      const pcm16 = downsampleToPcm16(channelData, inputAudioContext.sampleRate, TARGET_SAMPLE_RATE)
+      if (pcm16.length === 0) {
+        return
+      }
+
+      socket.send(JSON.stringify({
+        type: 'input_audio_buffer.append',
+        audio: pcm16ToBase64(pcm16),
+      }))
+    }
+
+    source.connect(processor)
+    processor.connect(mutedSink)
+    mutedSink.connect(inputAudioContext.destination)
+
+    inputSourceRef.current = source
+    inputProcessorRef.current = processor
+    inputSinkRef.current = mutedSink
+  }, [])
+
+  const disconnect = useCallback(() => {
+    intentionalDisconnectRef.current = true
+
+    const socket = wsRef.current
+    wsRef.current = null
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.close()
+    }
+
+    releaseAudioResources()
+    setState({ status: 'disconnected', error: null })
+  }, [releaseAudioResources])
 
   const connect = useCallback(async () => {
     setState({ status: 'connecting', error: null })
+    intentionalDisconnectRef.current = false
 
     try {
-      // Step 1: Get ephemeral token from backend
-      const tokenResponse = await fetch('/api/realtime/session', {
-        method: 'POST',
+      if (!window.isSecureContext) {
+        throw new Error('语音助手需要 HTTPS 或 localhost 才能使用麦克风')
+      }
+
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error('当前浏览器不支持麦克风采集')
+      }
+
+      await ensureOutputAudioContext()
+
+      const socket = await new Promise<WebSocket>((resolve, reject) => {
+        const realtimeSocket = new WebSocket(getRealtimeWebSocketUrl())
+
+        realtimeSocket.onopen = () => resolve(realtimeSocket)
+        realtimeSocket.onerror = () => reject(new Error('无法连接语音中转服务'))
       })
 
-      if (!tokenResponse.ok) {
-        const errData = await tokenResponse.json().catch(() => ({ detail: 'Token request failed' }))
-        throw new Error(errData.detail || `Token error: ${tokenResponse.status}`)
-      }
+      wsRef.current = socket
 
-      const { token, realtime_url } = await tokenResponse.json()
-
-      // Step 2: Request microphone access - prefer physical mic over virtual devices
-      let micStream: MediaStream
-      try {
-        // List all audio input devices
-        const devices = await navigator.mediaDevices.enumerateDevices()
-        const audioInputs = devices.filter(d => d.kind === 'audioinput')
-        console.log('[WebRTC] Available microphones:', audioInputs.map(d => `${d.label} (${d.deviceId.slice(0, 8)})`))
-
-        // Try to find a real mic (skip virtual/Omi devices)
-        const realMic = audioInputs.find(d =>
-          d.label && !d.label.toLowerCase().includes('virtual') && !d.label.toLowerCase().includes('omi')
-        )
-
-        if (realMic) {
-          console.log('[WebRTC] Using mic:', realMic.label)
-          micStream = await navigator.mediaDevices.getUserMedia({
-            audio: { deviceId: { exact: realMic.deviceId } }
-          })
-        } else {
-          console.log('[WebRTC] No preferred mic found, using default')
-          micStream = await navigator.mediaDevices.getUserMedia({ audio: true })
-        }
-      } catch {
-        throw new Error('请允许浏览器使用麦克风')
-      }
-      micStreamRef.current = micStream
-
-      // Step 3: Create RTCPeerConnection
-      const pc = new RTCPeerConnection()
-      pcRef.current = pc
-
-      // Step 4: Set up audio playback for AI responses
-      const audioEl = new Audio()
-      audioEl.autoplay = true
-      audioRef.current = audioEl
-
-      pc.ontrack = (event) => {
-        console.log('[WebRTC] Remote track received:', event.track.kind)
-        audioEl.srcObject = event.streams[0]
-      }
-
-      // Monitor connection state
-      pc.onconnectionstatechange = () => {
-        console.log('[WebRTC] Connection state:', pc.connectionState)
-      }
-      pc.oniceconnectionstatechange = () => {
-        console.log('[WebRTC] ICE connection state:', pc.iceConnectionState)
-      }
-      pc.onicegatheringstatechange = () => {
-        console.log('[WebRTC] ICE gathering state:', pc.iceGatheringState)
-      }
-
-      // Step 5: Add microphone track
-      const micTrack = micStream.getAudioTracks()[0]
-      console.log('[WebRTC] Mic track:', micTrack.label, 'enabled:', micTrack.enabled, 'readyState:', micTrack.readyState)
-      pc.addTrack(micTrack, micStream)
-
-      // Debug: Monitor mic audio levels
-      const audioCtx = new AudioContext()
-      const source = audioCtx.createMediaStreamSource(micStream)
-      const analyser = audioCtx.createAnalyser()
-      analyser.fftSize = 256
-      source.connect(analyser)
-      const dataArray = new Uint8Array(analyser.frequencyBinCount)
-      let levelLogCount = 0
-      const checkLevel = () => {
-        if (!micStreamRef.current) return
-        analyser.getByteFrequencyData(dataArray)
-        const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length
-        if (avg > 0 || levelLogCount % 60 === 0) {
-          console.log('[Mic Level]', avg.toFixed(1))
-        }
-        levelLogCount++
-        if (levelLogCount < 600) requestAnimationFrame(checkLevel) // ~10 seconds
-      }
-      checkLevel()
-
-      // Step 6: Create data channel for JSON events
-      const dc = pc.createDataChannel('oai-events')
-      dcRef.current = dc
-
-      dc.onopen = () => {
-        // Send session configuration once data channel is open
-        const sessionUpdate = {
-          type: 'session.update',
-          session: {
-            modalities: ['text', 'audio'],
-            instructions,
-            voice,
-            input_audio_transcription: { model: 'whisper-1' },
-            turn_detection: VAD_CONFIG,
-            tools: tools.map(t => ({
-              type: t.type,
-              name: t.name,
-              description: t.description,
-              parameters: t.parameters,
-            })),
-          },
-        }
-        dc.send(JSON.stringify(sessionUpdate))
-        setState({ status: 'connected', error: null })
-      }
-
-      dc.onmessage = (event) => {
+      socket.onmessage = (messageEvent) => {
         try {
-          const parsed = JSON.parse(event.data) as RealtimeEvent
-          console.log('[Realtime Event]', parsed.type, parsed)
+          const parsed = JSON.parse(messageEvent.data) as RealtimeEvent
+
+          if (isAudioDeltaEvent(parsed)) {
+            const delta = extractAudioDelta(parsed)
+            if (delta) {
+              void queueAudioPlayback(delta)
+            }
+          }
+
+          if (parsed.type === 'input_audio_buffer.speech_started') {
+            stopAudioPlayback()
+          }
+
+          if (parsed.type === 'error') {
+            const errorMessage = extractRealtimeErrorMessage(parsed)
+            if (errorMessage) {
+              setState({ status: 'error', error: errorMessage })
+            }
+          }
+
           onEvent(parsed)
-        } catch (err) {
-          console.error('Failed to parse data channel message:', err)
+        } catch (error) {
+          console.error('Failed to parse realtime websocket message:', error)
         }
       }
 
-      dc.onclose = () => {
-        console.log('Data channel closed')
-        // Only update state if we haven't already disconnected intentionally
-        if (pcRef.current) {
-          setState({ status: 'error', error: '连接已断开' })
+      socket.onclose = () => {
+        wsRef.current = null
+        releaseAudioResources()
+
+        if (intentionalDisconnectRef.current) {
+          setState({ status: 'disconnected', error: null })
+          return
+        }
+
+        setState((previousState) => ({
+          status: 'error',
+          error: previousState.error || '语音连接已断开',
+        }))
+      }
+
+      socket.onerror = () => {
+        if (!intentionalDisconnectRef.current) {
+          setState({ status: 'error', error: '语音连接发生异常' })
         }
       }
 
-      // Step 7: Create and send SDP offer (implicit style, as per OpenAI docs)
-      await pc.setLocalDescription()
-
-      // Use realtime_url from backend (proxy-aware) or fall back to OpenAI
-      const baseRealtimeUrl = realtime_url || 'https://api.openai.com/v1/realtime'
-      console.log('[WebRTC] Sending SDP offer to:', `${baseRealtimeUrl}?model=${REALTIME_MODEL}`)
-      const sdpResponse = await fetch(
-        `${baseRealtimeUrl}?model=${REALTIME_MODEL}`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/sdp',
+      socket.send(JSON.stringify({
+        type: 'session.update',
+        session: {
+          type: 'realtime',
+          model: REALTIME_MODEL,
+          output_modalities: ['audio'],
+          instructions,
+          audio: {
+            input: {
+              format: {
+                type: 'audio/pcm',
+                rate: TARGET_SAMPLE_RATE,
+              },
+              transcription: { model: 'whisper-1' },
+              turn_detection: {
+                ...VAD_CONFIG,
+                create_response: true,
+                interrupt_response: true,
+              },
+            },
+            output: {
+              format: {
+                type: 'audio/pcm',
+                rate: TARGET_SAMPLE_RATE,
+              },
+              voice,
+            },
           },
-          body: pc.localDescription?.sdp,
-        }
-      )
+          tool_choice: 'auto',
+          tools: tools.map((tool) => ({
+            type: tool.type,
+            name: tool.name,
+            description: tool.description,
+            parameters: tool.parameters,
+          })),
+        },
+      }))
 
-      if (!sdpResponse.ok) {
-        throw new Error(`WebRTC negotiation failed: ${sdpResponse.status}`)
+      await startMicrophoneStreaming(socket)
+      setState({ status: 'connected', error: null })
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : '语音服务连接失败'
+      console.error('Realtime session error:', error)
+
+      const socket = wsRef.current
+      wsRef.current = null
+      if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.close()
       }
 
-      const answerSdp = await sdpResponse.text()
-      await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
-
-      // Connection established - state will update to 'connected' when data channel opens
-
-    } catch (err) {
-      const errorMessage = (err as Error).message || '语音服务连接失败'
-      console.error('Realtime session error:', err)
-
-      // Clean up on failure
-      if (micStreamRef.current) {
-        micStreamRef.current.getTracks().forEach(track => track.stop())
-        micStreamRef.current = null
-      }
-      if (pcRef.current) {
-        pcRef.current.close()
-        pcRef.current = null
-      }
-      dcRef.current = null
-
+      releaseAudioResources()
       setState({ status: 'error', error: errorMessage })
     }
-  }, [instructions, voice, tools, onEvent])
+  }, [
+    ensureOutputAudioContext,
+    instructions,
+    onEvent,
+    queueAudioPlayback,
+    releaseAudioResources,
+    startMicrophoneStreaming,
+    stopAudioPlayback,
+    tools,
+    voice,
+  ])
 
   return {
     state,
